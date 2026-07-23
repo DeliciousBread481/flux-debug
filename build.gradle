@@ -18,7 +18,7 @@ buildscript {
 
 apply plugin: 'net.minecraftforge.gradle'
 
-version = "1.0.0"
+version = "1.0.1"
 group = 'deliciousbread481'
 archivesBaseName = 'FluxDebug'
 
@@ -52,10 +52,6 @@ repositories {
     }
 }
 
-compileJava {
-    options.compilerArgs += ['-proc:none']
-}
-
 configurations {
     embed
     implementation.extendsFrom(embed)
@@ -63,10 +59,12 @@ configurations {
 
 dependencies {
     minecraft "net.minecraftforge:forge:1.12.2-14.23.5.2854"
-
-    embed fg.deobf("curse.maven:mixinbooter-419286:7049694")
-
+    compileOnly fg.deobf("curse.maven:mixinbooter-419286:7049694")
     compileOnly 'org.spongepowered:mixin:0.8.5'
+}
+
+compileJava {
+    options.compilerArgs += ['-proc:none']
 }
 
 processResources {
@@ -83,16 +81,11 @@ processResources {
 }
 
 jar {
-    from configurations.embed.collect { it.isDirectory() ? it : zipTree(it) }
-
     manifest {
         attributes([
                 "FMLCorePlugin"              : "deliciousbread481.fluxdebug.FluxDebugPlugin",
                 "FMLCorePluginContainsFMLMod": "true",
-                "ForceLoadAsMod"             : "true",
-                "MixinConfigs"               : "mixins.fluxdebug.json",
-                "TweakClass"                 : "org.spongepowered.asm.launch.MixinTweaker",
-                "TweakOrder"                 : "0"
+                "ForceLoadAsMod"             : "true"
         ])
     }
 }

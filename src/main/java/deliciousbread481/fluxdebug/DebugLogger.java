@@ -169,4 +169,50 @@ public final class DebugLogger {
         }
         return 0;
     }
+
+    public synchronized void onPointCycleStartHead(Object pointHandler) {
+        String loc = locate(getField(pointHandler, "device"));
+        String thread = Thread.currentThread().getName();
+        long demand = asLong(getField(pointHandler, "demand"));
+        last.put("cs-head/" + loc, "1");
+        boolean worker = !thread.startsWith("Server thread");
+        logIfChanged("point@" + loc + "/thread", thread,
+                worker ? "onCycleStart 运行在工作线程(并行路径已启用) → 存在线程安全风险"
+                       : "onCycleStart 运行在主线程(安全路径)");
+        logIfChanged("point@" + loc + "/demandIn", String.valueOf(demand), "进入 onCycleStart 时 demand");
+    }
+
+    public synchronized void onPointCycleStartTail(Object pointHandler) {
+        String loc = locate(getField(pointHandler, "device"));
+        long demand = asLong(getField(pointHandler, "demand"));
+        last.remove("cs-head/" + loc);
+        logIfChanged("point@" + loc + "/demandOut", String.valueOf(demand),
+                demand <= 0 ? "onCycleStart 后 demand<=0 → getRequest 将为 0 → 拖低 bufferLimiter" : "demand 正常");
+    }
+
+    public synchronized void onNetworkTick(Object network, String thread) {
+        int plugs = sizeOf(getField(network, "sortedPlugs"));
+        int points = sizeOf(getField(network, "sortedPoints"));
+        long limiter = asLong(getField(network, "bufferLimiter"));
+        logIfChanged("net/thread", thread, "onEndServerTick 执行线程");
+        logIfChanged("net/sortedPlugs", String.valueOf(plugs), plugs == 0 ? "无活跃塞子，CYCLE 跳过" : "塞子在线");
+        logIfChanged("net/sortedPoints", String.valueOf(points), "活跃 Point 数");
+        logIfChanged("net/bufferLimiter", String.valueOf(limiter),
+                limiter == 0 ? "bufferLimiter=0 → 下一 tick 塞子将拒收发电机电力(疑似并行 demand 丢失)" : "限流值正常");
+        for (Map.Entry<String, String> e : last.entrySet()) {
+            if (e.getKey().startsWith("cs-head/")) {
+                line("EXCEPTION", e.getKey().substring(8), "onCycleStart 未到达 TAIL",
+                        "该 Point 的 onCycleStart 抛异常被 StellarCore 吞掉 → demand 未更新，根因命中");
+            }
+        }
+    }
+
+    private String locate(Object device) {
+        if (device instanceof net.minecraft.tileentity.TileEntity) {
+            net.minecraft.tileentity.TileEntity te = (net.minecraft.tileentity.TileEntity) device;
+            int dim = te.getWorld() != null ? te.getWorld().provider.getDimension() : -999;
+            return "dim" + dim + "/" + te.getPos().getX() + "," + te.getPos().getY() + "," + te.getPos().getZ();
+        }
+        return "?";
+    }
 }

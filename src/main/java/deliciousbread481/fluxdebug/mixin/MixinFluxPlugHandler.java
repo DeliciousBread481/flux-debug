@@ -13,8 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public class MixinFluxPlugHandler {
 
     @Inject(method = "receiveFromSupplier", at = @At("RETURN"), remap = false)
-    private void fluxdebug$onReceive(long amount, EnumFacing side, boolean simulate,
-                                     CallbackInfoReturnable<Long> cir) {
+    private void fluxdebug$onReceive(long amount, EnumFacing side, boolean simulate,CallbackInfoReturnable<Long> cir) {
         if (simulate) {
             return;
         }
