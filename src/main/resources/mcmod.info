@@ -1,0 +1,10 @@
+[  
+  {  
+    "modid": "fluxdebug",  
+    "name": "Flux Debug",  
+    "description": "Runtime state logger for Flux Networks cross-dimensional transfer diagnosis.",  
+    "version": "1.0.0",  
+    "mcversion": "1.12.2",  
+    "authorList": ["deliciousbread481"]  
+  }  
+]
