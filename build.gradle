@@ -1,8 +1,15 @@
 buildscript {
     repositories {
-        maven { url 'https://maven.minecraftforge.net' }
-        maven { url 'https://repo.spongepowered.org/repository/maven-public/' }
+        jcenter()
         mavenCentral()
+        maven {
+            name = "forge"
+            url = "https://files.minecraftforge.net/maven"
+        }
+        maven {
+            name = "spongepowered"
+            url = "https://repo.spongepowered.org/repository/maven-public/"
+        }
     }
     dependencies {
         classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '3.+', changing: true
@@ -11,7 +18,7 @@ buildscript {
 
 apply plugin: 'net.minecraftforge.gradle'
 
-version = "${minecraft_version}-${mod_version}"
+version = "1.0.0"
 group = 'deliciousbread481'
 archivesBaseName = 'FluxDebug'
 
@@ -19,47 +26,73 @@ sourceCompatibility = targetCompatibility = compileJava.sourceCompatibility = co
 
 minecraft {
     mappings channel: 'stable', version: '39-1.12'
+
     runs {
-        server {
+        client {
+            workingDirectory project.file('run')
             property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.disableRefMap', 'true'
+        }
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.disableRefMap', 'true'
         }
     }
 }
 
 repositories {
-    maven { url 'https://maven.cleanroommc.com/' }                       // MixinBooter
-    maven { url 'https://repo.spongepowered.org/repository/maven-public/' } // Mixin AP
-    mavenCentral()
+    maven {
+        name = 'CurseMaven'
+        url = 'https://www.cursemaven.com/'
+    }
+    maven {
+        name = 'spongepowered'
+        url = 'https://repo.spongepowered.org/repository/maven-public/'
+    }
+}
+
+compileJava {
+    options.compilerArgs += ['-proc:none']
 }
 
 configurations {
     embed
-    implementation.extendsFrom embed
+    implementation.extendsFrom(embed)
 }
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    minecraft "net.minecraftforge:forge:1.12.2-14.23.5.2854"
 
-    implementation "zone.rong:mixinbooter:${mixinbooter_version}"
+    embed fg.deobf("curse.maven:mixinbooter-419286:7049694")
 
-    compileOnly "org.spongepowered:mixin:${mixin_version}"
-    annotationProcessor "org.spongepowered:mixin:${mixin_version}:processor"
+    compileOnly 'org.spongepowered:mixin:0.8.5'
 }
 
-jar {
-    manifest {
-        attributes([
-                "FMLCorePlugin"               : "deliciousbread481.fluxdebug.FluxDebugPlugin",
-                "FMLCorePluginContainsFMLMod" : "true",
-                "ForceLoadAsMod"              : "true",
-                "MixinConfigs"                : "mixins.fluxdebug.json"
-        ])
+processResources {
+    inputs.property "version", project.version
+    inputs.property "mcversion", "1.12.2"
+
+    from(sourceSets.main.resources.srcDirs) {
+        include 'mcmod.info'
+        expand 'version': project.version, 'mcversion': "1.12.2"
+    }
+    from(sourceSets.main.resources.srcDirs) {
+        exclude 'mcmod.info'
     }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    options.compilerArgs += ["-AreobfTsrgFile=${tasks.named('reobfJar').get().srg.getAbsolutePath()}"]
-    doFirst {
-        options.compilerArgs += ["-AoutRefMapFile=${buildDir}/mixins.fluxdebug.refmap.json"]
+jar {
+    from configurations.embed.collect { it.isDirectory() ? it : zipTree(it) }
+
+    manifest {
+        attributes([
+                "FMLCorePlugin"              : "deliciousbread481.fluxdebug.FluxDebugPlugin",
+                "FMLCorePluginContainsFMLMod": "true",
+                "ForceLoadAsMod"             : "true",
+                "MixinConfigs"               : "mixins.fluxdebug.json",
+                "TweakClass"                 : "org.spongepowered.asm.launch.MixinTweaker",
+                "TweakOrder"                 : "0"
+        ])
     }
 }

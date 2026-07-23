@@ -152,3 +152,21 @@ public final class DebugLogger {
         }
         return null;
     }
+
+    public long asLong(Object o) {
+        if (o instanceof Number) {
+            return ((Number) o).longValue();
+        }
+        return 0L;
+    }
+
+    public int sizeOf(Object o) {
+        if (o instanceof Collection) {
+            return ((Collection<?>) o).size();
+        }
+        if (o instanceof Map) {
+            return ((Map<?, ?>) o).size();
+        }
+        return 0;
+    }
+}

@@ -3,7 +3,6 @@
   "minVersion": "0.8",
   "package": "deliciousbread481.fluxdebug.mixin",
   "compatibilityLevel": "JAVA_8",
-  "refmap": "mixins.fluxdebug.refmap.json",
   "mixins": [
     "MixinFluxNetworkServer",
     "MixinFluxPlugHandler"
