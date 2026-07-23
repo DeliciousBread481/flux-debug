@@ -7,8 +7,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-@IFMLLoadingPlugin.Name("FluxDebug")
 @IFMLLoadingPlugin.MCVersion("1.12.2")
+@IFMLLoadingPlugin.Name("FluxDebugPlugin")
 @IFMLLoadingPlugin.SortingIndex(1001)
 public class FluxDebugPlugin implements IFMLLoadingPlugin, ILateMixinLoader {
 
@@ -19,13 +19,7 @@ public class FluxDebugPlugin implements IFMLLoadingPlugin, ILateMixinLoader {
 
     @Override
     public boolean shouldMixinConfigQueue(String mixinConfig) {
-        try {
-            Class.forName("sonar.fluxnetworks.common.connection.FluxNetworkServer", false,
-                    FluxDebugPlugin.class.getClassLoader());
-            return true;
-        } catch (Throwable t) {
-            return false;
-        }
+        return true;
     }
 
     @Override public String[] getASMTransformerClass() { return new String[0]; }
