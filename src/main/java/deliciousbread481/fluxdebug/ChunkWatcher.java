@@ -18,17 +18,17 @@ public class ChunkWatcher {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
+            DebugLogger.INSTANCE.tick();
+
             MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) {
                 return;
             }
-
             WorldServer ow = server.getWorld(0);
             if (ow != null) {
-                DebugLogger.INSTANCE.logWorldTime(0, ow.getTotalWorldTime());
+                DebugLogger.INSTANCE.logWorldTime(0, ow.getTotalWorldTime(), ow.getWorldTime());
             }
-
-            DebugLogger.INSTANCE.pollFluxNetworks();
+            DebugLogger.INSTANCE.pollFlux();
         }
     }
 

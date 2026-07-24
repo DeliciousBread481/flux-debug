@@ -26,7 +26,7 @@ public final class DebugLogger {
     private final Map<String, Method> methodCache = new HashMap<>();
     private final SimpleDateFormat fmt = new SimpleDateFormat("HH:mm:ss.SSS");
 
-    private long tick = 0;
+    private volatile long tick = 0;
 
     private DebugLogger() {
         File dir = file.getParentFile();
@@ -35,26 +35,28 @@ public final class DebugLogger {
         }
     }
 
-    public void onServerTick() {
-        tick++;
+    public synchronized long tick() {
+        return ++tick;
     }
 
-    public synchronized void logWorldTime(int dim, long worldTime) {
-        String key = "worldTime/dim" + dim;
-        String prevStr = last.get(key);
-        last.put(key, String.valueOf(worldTime));
-        if (prevStr != null) {
-            long prev = Long.parseLong(prevStr);
-            long delta = worldTime - prev;
-            if (delta != 1) {
-                line("WORLDTIME", key, prev + " -> " + worldTime + " (delta=" + delta + ")",
-                        delta == 0 ? "该维度世界时间停滞（可能未 tick）" : "世界时间跳变，非正常每 tick +1");
-            }
+    public synchronized void logWorldTime(int dim, long totalWorldTime, long worldTime) {
+        if (dim != 0) {
+            return;
         }
-    }
+        String prevTotal = last.get("wt/total");
+        last.put("wt/total", String.valueOf(totalWorldTime));
+        last.put("wt/day", String.valueOf(worldTime));
 
-    public long tick() {
-        return tick;
+        boolean stalled = prevTotal != null && Long.parseLong(prevTotal) == totalWorldTime;
+        String stallNow = String.valueOf(stalled);
+        String stallPrev = last.get("wt/stalled");
+        if (!stallNow.equals(stallPrev)) {
+            last.put("wt/stalled", stallNow);
+            line("WORLDTIME", "dim0",
+                    "total=" + totalWorldTime + " day=" + worldTime + " tick=" + tick,
+                    stalled ? "主世界 totalWorldTime 停止推进（dim0 未 tick）"
+                            : "主世界 totalWorldTime 恢复推进");
+        }
     }
 
     public boolean isSnapshotTick() {
@@ -288,5 +290,53 @@ public final class DebugLogger {
 
     private int asInt(Object o) {
         return o instanceof Number ? ((Number) o).intValue() : 0;
+    }
+
+    public synchronized void pollFlux() {
+        try {
+            Class<?> cacheCls = Class.forName("sonar.fluxnetworks.common.connection.FluxNetworkCache");
+            Object cache = cacheCls.getField("instance").get(null);
+            java.util.Collection<?> networks =
+                    (java.util.Collection<?>) cacheCls.getMethod("getAllNetworks").invoke(cache);
+
+            Class<?> settingsCls = Class.forName("sonar.fluxnetworks.api.network.NetworkSettings");
+            Object allConnectors = settingsCls.getField("ALL_CONNECTORS").get(null);
+            Method getSetting = null;
+
+            int nets = 0, dim0 = 0;
+            for (Object network : networks) {
+                nets++;
+                Long limiter = null;
+                try {
+                    limiter = asLong(getField(network, "bufferLimiter"));
+                } catch (Throwable ignored) {
+                }
+                if (getSetting == null) {
+                    getSetting = network.getClass().getMethod("getSetting", settingsCls);
+                }
+                List<?> conns = (List<?>) getSetting.invoke(network, allConnectors);
+                for (Object c : conns) {
+                    Object coords = invoke(c, "getCoords");
+                    int dim = ((Number) invoke(coords, "getDimension")).intValue();
+                    if (dim != 0) {
+                        continue;
+                    }
+                    dim0++;
+                    long buf = asLong(invoke(c, "getTransferBuffer"));
+                    long chg = asLong(invoke(c, "getTransferChange"));
+                    Object active = invoke(c, "isActive");
+                    Object loaded = invoke(c, "isChunkLoaded");
+                    logIfChanged("flux/" + coords,
+                            "buf=" + buf + " chg=" + chg + " active=" + active
+                                    + " loaded=" + loaded + " limiter=" + limiter,
+                            chg == 0 ? "dim0 该连接无能量流动" : "有能量流动");
+                }
+            }
+            logIfChanged("flux/summary", "tick=" + tick + " networks=" + nets + " dim0Connectors=" + dim0,
+                    dim0 == 0 ? "dim0 无任何已注册 Flux 连接（大概率因 dim0 未 tick，tile 未 addConnection）" : "");
+        } catch (Throwable t) {
+            line("ERROR", "pollFlux", t.getClass().getSimpleName(),
+                    "反射轮询失败：" + t.getMessage());
+        }
     }
 }
