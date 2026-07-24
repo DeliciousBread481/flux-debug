@@ -9,6 +9,7 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -214,5 +215,78 @@ public final class DebugLogger {
             return "dim" + dim + "/" + te.getPos().getX() + "," + te.getPos().getY() + "," + te.getPos().getZ();
         }
         return "?";
+    }
+
+    public synchronized void pollFluxNetworks() {
+        try {
+            Class<?> cacheClz = Class.forName("sonar.fluxnetworks.common.connection.FluxNetworkCache");
+            Object cache = cacheClz.getField("instance").get(null);
+            Collection<?> networks = (Collection<?>) cacheClz.getMethod("getAllNetworks").invoke(cache);
+
+            Class<?> logicClz = Class.forName("sonar.fluxnetworks.api.network.FluxLogicType");
+            Object PLUG = Enum.valueOf(logicClz.asSubclass(Enum.class), "PLUG");
+            Object POINT = Enum.valueOf(logicClz.asSubclass(Enum.class), "POINT");
+            Method getConnections = networks.iterator().hasNext()
+                    ? findMethod(networks.iterator().next().getClass(), "getConnections") : null;
+
+            for (Object network : networks) {
+                if ((Boolean) invoke(network, "isInvalid")) {
+                    continue;
+                }
+                int id = asInt(invoke(network, "getNetworkID"));
+                long limiter = asLong(getField(network, "bufferLimiter"));
+
+                List<?> plugs = (List<?>) network.getClass()
+                        .getMethod("getConnections", logicClz).invoke(network, PLUG);
+                List<?> points = (List<?>) network.getClass()
+                        .getMethod("getConnections", logicClz).invoke(network, POINT);
+
+                int owPlugs = pollConnectors(id, "PLUG", plugs, limiter);
+                int owPoints = pollConnectors(id, "POINT", points, limiter);
+
+                if (owPlugs > 0 || owPoints > 0) {
+                    String key = "net" + id;
+                    logIfChanged(key + "/bufferLimiter", String.valueOf(limiter),
+                            limiter == 0 ? "网络限流为 0：下一 tick plug 将拒收发电机电力" : "");
+                    logIfChanged(key + "/size", owPlugs + "P/" + owPoints + "p", "");
+                }
+            }
+        } catch (Throwable e) {
+            line("POLL_ERROR", "pollFluxNetworks", e.toString(), "轮询 Flux 网络异常");
+        }
+    }
+
+    private int pollConnectors(int netId, String kind, List<?> connectors, long limiter) {
+        int count = 0;
+        for (Object c : connectors) {
+            try {
+                Object coords = invoke(c, "getCoords");
+                if (asInt(invoke(coords, "getDimension")) != 0) {
+                    continue;
+                }
+                count++;
+                String pos = String.valueOf(invoke(coords, "getStringInfo"));
+                String base = "net" + netId + "/" + kind + "/" + pos;
+                long buffer = asLong(invoke(c, "getTransferBuffer"));
+                long change = asLong(invoke(c, "getTransferChange"));
+                boolean active = Boolean.TRUE.equals(invoke(c, "isActive"));
+                boolean loaded = Boolean.TRUE.equals(invoke(c, "isChunkLoaded"));
+
+                String reason = "";
+                if ("PLUG".equals(kind)) {
+                    reason = change > 0 ? "在收电" : (limiter == 0 ? "限流0，无法收电" : "未收电");
+                } else {
+                    reason = change < 0 ? "在向机械送电" : "未送电";
+                }
+                logIfChanged(base, "buf=" + buffer + " chg=" + change
+                        + " active=" + active + " loaded=" + loaded, reason);
+            } catch (Throwable ignored) {
+            }
+        }
+        return count;
+    }
+
+    private int asInt(Object o) {
+        return o instanceof Number ? ((Number) o).intValue() : 0;
     }
 }

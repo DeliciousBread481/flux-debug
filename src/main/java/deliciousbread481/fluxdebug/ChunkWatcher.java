@@ -2,6 +2,7 @@ package deliciousbread481.fluxdebug;
 
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.WorldServer;
 import net.minecraftforge.event.world.ChunkEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
@@ -17,16 +18,17 @@ public class ChunkWatcher {
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
-            DebugLogger.INSTANCE.onServerTick();
-
-            net.minecraft.server.MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
-            if (server != null) {
-                for (WorldServer ws : server.worlds) {
-                    if (ws != null) {
-                        DebugLogger.INSTANCE.logWorldTime(ws.provider.getDimension(), ws.getTotalWorldTime());
-                    }
-                }
+            MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+            if (server == null) {
+                return;
             }
+
+            WorldServer ow = server.getWorld(0);
+            if (ow != null) {
+                DebugLogger.INSTANCE.logWorldTime(0, ow.getTotalWorldTime());
+            }
+
+            DebugLogger.INSTANCE.pollFluxNetworks();
         }
     }
 
