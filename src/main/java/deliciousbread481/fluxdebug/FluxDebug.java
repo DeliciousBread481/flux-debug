@@ -4,7 +4,7 @@ import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.common.event.FMLServerStartingEvent;
 
-@Mod(modid = FluxDebug.MODID, name = "Flux Debug", version = "1.2.0",
+@Mod(modid = FluxDebug.MODID, name = "Flux Debug", version = "1.2.1",
         acceptedMinecraftVersions = "[1.12.2]", dependencies = "after:fluxnetworks")
 public class FluxDebug {
 

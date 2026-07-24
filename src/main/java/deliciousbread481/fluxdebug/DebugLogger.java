@@ -296,47 +296,55 @@ public final class DebugLogger {
         try {
             Class<?> cacheCls = Class.forName("sonar.fluxnetworks.common.connection.FluxNetworkCache");
             Object cache = cacheCls.getField("instance").get(null);
-            java.util.Collection<?> networks =
-                    (java.util.Collection<?>) cacheCls.getMethod("getAllNetworks").invoke(cache);
+            Collection<?> networks = (Collection<?>) cacheCls.getMethod("getAllNetworks").invoke(cache);
 
-            Class<?> settingsCls = Class.forName("sonar.fluxnetworks.api.network.NetworkSettings");
-            Object allConnectors = settingsCls.getField("ALL_CONNECTORS").get(null);
-            Method getSetting = null;
+            Class<?> nsCls = Class.forName("sonar.fluxnetworks.api.network.NetworkSettings");
+            Object allConnectors = nsCls.getField("ALL_CONNECTORS").get(null);
+            Method getSetting = Class.forName("sonar.fluxnetworks.api.network.IFluxNetwork")
+                    .getMethod("getSetting", nsCls);
 
-            int nets = 0, dim0 = 0;
+            int nets = networks.size();
+            int dim0 = 0;
+
             for (Object network : networks) {
-                nets++;
                 Long limiter = null;
-                try {
-                    limiter = asLong(getField(network, "bufferLimiter"));
-                } catch (Throwable ignored) {
+                Object lim = getField(network, "bufferLimiter");
+                if (lim != null) {
+                    limiter = asLong(lim);
                 }
-                if (getSetting == null) {
-                    getSetting = network.getClass().getMethod("getSetting", settingsCls);
+
+                List<?> connectors = (List<?>) getSetting.invoke(network, allConnectors);
+                if (connectors == null) {
+                    continue;
                 }
-                List<?> conns = (List<?>) getSetting.invoke(network, allConnectors);
-                for (Object c : conns) {
+                for (Object c : connectors) {
                     Object coords = invoke(c, "getCoords");
-                    int dim = ((Number) invoke(coords, "getDimension")).intValue();
+                    if (coords == null) {
+                        continue;
+                    }
+                    int dim = (int) invoke(coords, "getDimension");
                     if (dim != 0) {
                         continue;
                     }
                     dim0++;
+
+                    String pos = String.valueOf(invoke(c, "getCoords"));
                     long buf = asLong(invoke(c, "getTransferBuffer"));
                     long chg = asLong(invoke(c, "getTransferChange"));
                     Object active = invoke(c, "isActive");
                     Object loaded = invoke(c, "isChunkLoaded");
-                    logIfChanged("flux/" + coords,
+
+                    logIfChanged("flux/" + pos,
                             "buf=" + buf + " chg=" + chg + " active=" + active
                                     + " loaded=" + loaded + " limiter=" + limiter,
-                            chg == 0 ? "dim0 该连接无能量流动" : "有能量流动");
+                            (limiter != null && limiter == 0) ? "bufferLimiter=0：下一 tick 将拒收发电机电力" : null);
                 }
             }
-            logIfChanged("flux/summary", "tick=" + tick + " networks=" + nets + " dim0Connectors=" + dim0,
-                    dim0 == 0 ? "dim0 无任何已注册 Flux 连接（大概率因 dim0 未 tick，tile 未 addConnection）" : "");
-        } catch (Throwable t) {
-            line("ERROR", "pollFlux", t.getClass().getSimpleName(),
-                    "反射轮询失败：" + t.getMessage());
+
+            logIfChanged("flux/summary", "networks=" + nets + " dim0Connectors=" + dim0,
+                    dim0 == 0 ? "dim0 无任何已注册 Flux 连接（大概率因 dim0 未 tick，tile 未 addConnection）" : null);
+        } catch (Throwable e) {
+            line("ERROR", "pollFlux", e.getClass().getSimpleName() + ": " + e.getMessage(), null);
         }
     }
 }

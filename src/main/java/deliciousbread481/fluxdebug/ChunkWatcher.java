@@ -19,6 +19,7 @@ public class ChunkWatcher {
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             DebugLogger.INSTANCE.tick();
+            DebugLogger.INSTANCE.pollFlux();
 
             MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
             if (server == null) {
